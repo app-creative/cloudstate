@@ -526,9 +526,13 @@ object HttpApi {
                     if (isHttpBodyResponse) extractContentTypeFromHttpBody(entityMessage)
                     else ContentTypes.`application/json`
 
-                  val data =
-                    if (isHttpBodyResponse) extractDataFromHttpBody(entityMessage)
-                    else ByteString(jsonPrinter.print(entityMessage))
+                  val first = {
+                    val data =
+                      if (isHttpBodyResponse) extractDataFromHttpBody(entityMessage)
+                      else ByteString(jsonPrinter.print(entityMessage))
+
+                    Source.single(HttpEntity.Chunk(data, extension))
+                  }
 
                   //val extensions = extractExtensionsFromHttpBody(entityMessage) // FIXME / TODO HttpBody.extensions not supported yet
 
@@ -536,7 +540,7 @@ object HttpApi {
                     response.copy(
                       entity = HttpEntity.Chunked(
                         contentType,
-                        rest map {
+                        first.concat(rest map {
                           case HttpEntity.Chunk(bytes, extension) =>
                             val entityMessage: MessageOrBuilder = parseResponseBody(bytes.drop(5))
                             val data =
@@ -553,7 +557,7 @@ object HttpApi {
                                   ErrorInfo.fromCompoundString(s"Response error: $other")
                                 )
                             }
-                        }
+                        })
                       )
                     )
                   )
